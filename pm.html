@@ -198,17 +198,15 @@
 
   <div class="vtune" id="vtune">
     <span class="tune">위 잘라내기
-      <input type="range" id="tT" min="0" max="1200" step="1"><b id="tTv"></b></span>
+      <input type="range" id="tT" min="0" max="900" step="5"><b id="tTv"></b></span>
     <span class="tune">좌 잘라내기
-      <input type="range" id="tL" min="0" max="600" step="1"><b id="tLv"></b></span>
+      <input type="range" id="tL" min="0" max="600" step="5"><b id="tLv"></b></span>
     <span class="tune">가로 폭
-      <input type="range" id="tW" min="700" max="2400" step="10"><b id="tWv"></b></span>
+      <input type="range" id="tW" min="900" max="2400" step="20"><b id="tWv"></b></span>
     <span class="tune">확대
-      <input type="range" id="tZ" min="40" max="100" step="1"><b id="tZv"></b></span>
-    <span class="tune"><label style="display:flex;align-items:center;gap:5px;cursor:pointer">
-      <input type="checkbox" id="tFit" style="accent-color:var(--acc)">폭 맞춤</label></span>
+      <input type="range" id="tZ" min="50" max="150" step="1"><b id="tZv"></b></span>
     <span class="tune">높이
-      <input type="range" id="tH" min="300" max="2000" step="10"><b id="tHv"></b></span>
+      <input type="range" id="tH" min="400" max="2000" step="20"><b id="tHv"></b></span>
     <button class="btn sm" id="btnTuneReset">초기화</button>
   </div>
 
@@ -266,12 +264,8 @@ let sel     = null;                       // 선택된 캐릭터명
 let view    = load(LS.view,"info");       // 선택된 탭
 let clipCfg = load(LS.clip,{});            // 탭별 잘라내기 설정
 
-/* t=위 잘라내기, l=좌 잘라내기, w=iframe 가로 폭, z=확대(%), h=표시 높이 — 모두 px
-   기본값은 maplescouter 실측 기준(1060px 폭):
-     y 0~117 헤더 / 130~380 광고배너 / 380~436 공지 / 436~686 즐겨찾기 → 686부터 본문
-   폭을 1060으로 고정하면 좌우 여백이 없어 사이드 광고 자리가 생기지 않는다.
-   네 탭(환산·보스컷·스펙업·헥사) 모두 상단 구조가 동일해 같은 값을 쓴다. */
-const CLIP_DEFAULT = { t:686, l:23, w:1060, z:100, h:760, fit:true };
+/* t=위 잘라내기, l=좌 잘라내기, w=iframe 가로 폭, z=확대(%), h=표시 높이 — 모두 px */
+const CLIP_DEFAULT = { t:0, l:0, w:0, z:100, h:900 };   // w:0 = 컨테이너 폭 그대로(잘라내지 않음)
 const cfg = () => (clipCfg[view] = Object.assign({}, CLIP_DEFAULT, clipCfg[view]));
 
 /* ================= API ================= */
@@ -444,7 +438,7 @@ function openViewer(name){
 function applyClip(){
   const clip=document.getElementById("clip"), f=document.getElementById("frame");
   if(clip.style.display==="none") return;
-  const c=cfg();
+  const c=cfg(), z=c.z/100;
 
   let h=c.h;
   if(document.body.classList.contains("zen")){
@@ -454,23 +448,10 @@ function applyClip(){
   clip.style.height=h+"px";
 
   const containerW = clip.clientWidth;
-  const layoutW = c.w>0 ? c.w : Math.round(containerW + c.l);
-  const contentW = Math.max(1, layoutW - c.l);        // 실제로 보여줄 가로 영역
+  const layoutW = c.w>0 ? c.w : Math.round(containerW/z + c.l);
 
-  /* 폭 맞춤: 컨테이너보다 넓으면 축소해 맞춘다. 확대는 흐려지므로 100%를 넘기지 않는다. */
-  const z = c.fit ? Math.min(1, containerW/contentW) : c.z/100;
-  if(c.fit){
-    const pct=Math.round(z*100);
-    const zi=document.getElementById("tZ");
-    if(zi){ zi.value=pct; document.getElementById("tZv").textContent=pct+"% (자동)"; }
-  }
-
-  /* 남는 가로 공간은 좌우로 나눠 가운데 정렬 */
-  const offsetX = Math.max(0, (containerW - contentW*z)/2);
-
-  f.style.left      = offsetX+"px";
-  f.style.width     = layoutW+"px";
-  f.style.height    = (c.t + h/z)+"px";
+  f.style.width  = layoutW+"px";
+  f.style.height = (c.t + h/z)+"px";
   f.style.transform = `scale(${z}) translate(${-c.l}px, ${-c.t}px)`;
 }
 
@@ -483,25 +464,16 @@ function syncTuneInputs(){
     document.getElementById(id+"v").textContent =
       (key==="w" && !c.w) ? "자동" : c[key]+unit;
   }
-  const fit=document.getElementById("tFit");
-  fit.checked = !!c.fit;
-  document.getElementById("tZ").disabled = !!c.fit;   // 자동일 땐 확대 슬라이더 잠금
 }
 for(const [id,key,unit] of TUNE){
   document.getElementById(id).addEventListener("input", e=>{
     const c=cfg();
     c[key] = +e.target.value;
-    if(key==="z") c.fit=false;                        // 확대를 직접 만지면 자동 해제
     document.getElementById(id+"v").textContent = c[key]+unit;
     save(LS.clip,clipCfg);
-    syncTuneInputs();
     applyClip();
   });
 }
-document.getElementById("tFit").addEventListener("change", e=>{
-  cfg().fit = e.target.checked;
-  save(LS.clip,clipCfg); syncTuneInputs(); applyClip();
-});
 document.getElementById("btnTune").addEventListener("click", ()=>{
   document.getElementById("vtune").classList.toggle("on");
   applyClip();
