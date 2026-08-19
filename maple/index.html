@@ -94,11 +94,15 @@
   .empty{padding:40px 20px;text-align:center;color:var(--tx3);font-size:13px;line-height:1.9}
 
   .totalbar{padding:10px 14px;border-top:1px solid var(--line);background:var(--panel2);
-    font-size:13px;color:var(--tx2);text-align:right}
-  .totalbar b{color:var(--acc2);font-size:15px;font-weight:800}
+    font-size:13px;color:var(--tx2);text-align:right;
+    display:flex;gap:18px;align-items:baseline;justify-content:flex-end;flex-wrap:wrap}
+  .totalbar b{color:var(--acc2);font-size:15px;font-weight:800;margin-left:5px}
+  .totalbar .tot{white-space:nowrap}
+  .totalbar .sub{margin-left:5px}
 
+  .revlab{margin-top:2px;color:var(--acc2);opacity:.85}
   .revcell{display:inline-flex;align-items:center;gap:3px;justify-content:flex-end}
-  .revin{width:64px;padding:4px 6px;font-size:12.5px;text-align:right;
+  .revin{width:88px;padding:4px 6px;font-size:12.5px;text-align:right;
     background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:6px;
     font-family:inherit;outline:none;-moz-appearance:textfield}
   .revin::-webkit-outer-spin-button,.revin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
@@ -271,7 +275,8 @@ const ms = (path,n) => MS+path+"?name="+encodeURIComponent(n)+"&preset="+PRESET;
 
 const LS = { key:"msdash.apikey", names:"msdash.names", data:"msdash.data",
              ocid:"msdash.ocid", sort:"msdash.sort", view:"msdash.view", time:"msdash.time",
-             clip:"msdash.clip", rev:"msdash.rev" };
+             clip:"msdash.clip", rev:"msdash.rev",
+             revw:"msdash.revw", revm:"msdash.revm" };
 const OCID_TTL = 7*24*3600*1000;
 const CONCURRENCY = 4;
 
@@ -286,7 +291,21 @@ let sort    = Object.assign({col:"cp",dir:-1}, load(LS.sort,{}));
 let sel     = null;                       // 선택된 캐릭터명
 let view    = load(LS.view,"info");       // 선택된 탭
 let clipCfg = load(LS.clip,{});            // 탭별 잘라내기 설정
-let rev     = load(LS.rev,{});             // 캐릭터별 주간 결정석 수익(억) — 직접 입력
+/* 결정석 수익 — 캐릭터별로 직접 입력. 단위는 만 메소(226000 = 22억 6천만). */
+let revW = load(LS.revw,null);             // 주간
+let revM = load(LS.revm,{});               // 월간
+
+/* 예전에는 억 단위로 받았다. 그대로 두면 12.5억이 12.5만으로 읽혀 조용히
+   망가지므로, 옛 키가 남아 있으면 만 단위로 환산해 옮기고 지운다. */
+if(revW===null){
+  const old = load(LS.rev,null);
+  revW = {};
+  if(old && typeof old==="object"){
+    for(const [k,v] of Object.entries(old)) if(+v>0) revW[k]=Math.round(+v*10000);
+    save(LS.revw,revW);
+    try{ localStorage.removeItem(LS.rev); }catch{}
+  }
+}
 
 /* t=위, b=아래, l=좌 잘라내기, w=iframe 가로 폭, z=확대(%), h=표시 높이 — 모두 px
    기본값은 maplescouter 실측 기준(1060px 폭):
@@ -399,6 +418,23 @@ function cpFmt(n){
 }
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
+/* 만 메소를 한국식 단위로. 226000 → "22억 6천만", 10000 → "1억", 6500 → "6,500만" */
+function meso(man){
+  man = Math.round(+man||0);
+  if(!man) return "";
+  const eok = Math.floor(man/10000), r = man%10000;
+  let s = "";
+  if(eok>=10000){
+    const jo=Math.floor(eok/10000), er=eok%10000;
+    s = jo.toLocaleString("ko-KR")+"조" + (er?" "+er.toLocaleString("ko-KR")+"억":"");
+  } else if(eok) s = eok.toLocaleString("ko-KR")+"억";
+  if(r){
+    const rs = r%1000===0 ? (r/1000)+"천만" : r.toLocaleString("ko-KR")+"만";
+    s = s ? s+" "+rs : rs;
+  }
+  return s;
+}
+
 /* ================= 표 ================= */
 const COLS = [
   { id:"name",  label:"캐릭터", align:"l", val:r=>r.name, cell:r=>{
@@ -407,19 +443,26 @@ const COLS = [
   { id:"level", label:"레벨",   val:r=>r.level,  cell:r=>`Lv.${r.level}<div class="sub">${nf1(r.exp)}%</div>` },
   { id:"cp",    label:"전투력", val:r=>r.cp,     cell:r=>cpFmt(r.cp) },
   { id:"union", label:"유니온", val:r=>r.union,  cell:r=>r.union?`${nf(r.union)}<div class="sub">아티 ${r.artifact}</div>`:"-" },
-  { id:"main",  label:"주스탯", val:r=>r.main,   cell:r=>`${nf(r.main)}<div class="sub">${r.mainLabel}</div>` },
-  { id:"atk",   label:"공격력", val:r=>r.atk,    cell:r=>`${nf(r.atk)}<div class="sub">${r.isMage?"마력":"공격력"}</div>` },
   { id:"boss",  label:"보공",   val:r=>r.boss,   cell:r=>nf1(r.boss)+"%" },
   { id:"ied",   label:"방무",   val:r=>r.ied,    cell:r=>nf1(r.ied)+"%" },
   { id:"cd",    label:"크뎀",   val:r=>r.cd,     cell:r=>nf1(r.cd)+"%" },
   { id:"fd",    label:"최종뎀", val:r=>r.fd,     cell:r=>nf1(r.fd)+"%" },
-  { id:"rev",   label:"주간수익", val:r=>+rev[r.name]||0, cell:r=>
-      `<span class="revcell"><input class="revin" type="number" step="0.1" min="0"
-         data-name="${esc(r.name)}" value="${rev[r.name]!=null?esc(rev[r.name]):""}"
-         placeholder="0">억<button class="mini" data-crystal="${esc(r.name)}"
-         title="chuchu 결정석 세팅 열기">↗</button></span>` },
+  { id:"revw",  label:"주간수익", val:r=>+revW[r.name]||0, cell:r=>revCell(r,"w") },
+  { id:"revm",  label:"월간수익", val:r=>+revM[r.name]||0, cell:r=>revCell(r,"m") },
   { id:"open",  label:"",       val:()=>0, nosort:true, cell:()=>`<button class="btn sm">보기</button>` },
 ];
+
+/* 수익 입력칸: 만 단위로 받고 그 아래에 한국식 표기를 같이 보여준다 */
+function revCell(r, kind){
+  const store = kind==="w" ? revW : revM;
+  const v = store[r.name];
+  const link = kind==="w"
+    ? `<button class="mini" data-crystal="${esc(r.name)}" title="chuchu 결정석 세팅 열기">↗</button>` : "";
+  return `<span class="revcell"><input class="revin" type="number" step="1000" min="0"
+      data-name="${esc(r.name)}" data-kind="${kind}"
+      value="${v!=null?esc(v):""}" placeholder="만">${link}</span>
+    <div class="sub revlab" data-lab="${kind}-${esc(r.name)}">${esc(meso(v))}</div>`;
+}
 
 function render(){
   const thead=document.getElementById("thead"), tbody=document.getElementById("tbody"), empty=document.getElementById("empty");
@@ -463,22 +506,34 @@ document.getElementById("tbody").addEventListener("click", e=>{
 });
 document.getElementById("tbody").addEventListener("input", e=>{
   const el=e.target; if(!el.classList.contains("revin")) return;
+  const kind=el.dataset.kind, name=el.dataset.name;
+  const store = kind==="w" ? revW : revM;
   const v=el.value.trim();
-  if(v==="") delete rev[el.dataset.name]; else rev[el.dataset.name]=+v;
-  save(LS.rev,rev);
-  updateTotal();          // 표를 다시 그리면 입력 포커스가 끊기므로 합계만 갱신
+  if(v==="") delete store[name]; else store[name]=Math.max(0,Math.round(+v));
+  save(kind==="w"?LS.revw:LS.revm, store);
+  /* 표를 다시 그리면 입력 포커스가 끊기므로 해당 표기와 합계만 갱신한다 */
+  const lab=document.querySelector(`[data-lab="${CSS.escape(kind+"-"+name)}"]`);
+  if(lab) lab.textContent = meso(store[name]);
+  updateTotal();
 });
 
 function updateTotal(){
   const el=document.getElementById("revtotal");
   if(!el) return;
   const list=rows.filter(r=>!r.err);
-  const sum=list.reduce((a,r)=>a+(+rev[r.name]||0),0);
-  const n=list.filter(r=>+rev[r.name]>0).length;
-  el.innerHTML = sum>0
-    ? `주간 결정석 합계 <b>${sum.toLocaleString("ko-KR",{maximumFractionDigits:1})}억</b>
-       <span class="sub">· ${n}캐릭 입력됨</span>`
-    : `<span class="sub">주간수익 칸에 chuchu에서 본 값을 적어두면 합계가 나옵니다.</span>`;
+  const w=list.reduce((a,r)=>a+(+revW[r.name]||0),0);
+  const m=list.reduce((a,r)=>a+(+revM[r.name]||0),0);
+  if(!w && !m){
+    el.innerHTML=`<span class="sub">주간·월간 수익 칸에 chuchu에서 본 값을 만 단위로 적어두면 합계가 나옵니다.</span>`;
+    return;
+  }
+  const n=list.filter(r=>(+revW[r.name]||0)+(+revM[r.name]||0)>0).length;
+  /* 월간 총 수익 = 주간 × 4 + 월간 보스 */
+  el.innerHTML =
+    `<span class="tot">주간 총 수익 <b>${esc(meso(w))}</b></span>
+     <span class="tot">월간 총 수익 <b>${esc(meso(w*4+m))}</b>
+       <span class="sub">주간×4 ${m?"+ 월간 "+esc(meso(m)):""}</span></span>
+     <span class="sub">· ${n}캐릭</span>`;
 }
 
 /* ================= 뷰어 ================= */
@@ -686,7 +741,7 @@ document.getElementById("btnKeyShow").addEventListener("click", e=>{
 
 /* ================= 백업 / 복원 ================= */
 document.getElementById("btnExport").addEventListener("click", ()=>{
-  const blob=new Blob([JSON.stringify({names,apikey,rev,clipCfg},null,2)],{type:"application/json"});
+  const blob=new Blob([JSON.stringify({names,apikey,revW,revM,clipCfg},null,2)],{type:"application/json"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download="maple-dashboard-backup.json"; a.click();
   URL.revokeObjectURL(a.href);
@@ -699,7 +754,13 @@ document.getElementById("btnImport").addEventListener("click", ()=>{
       const j=JSON.parse(await inp.files[0].text());
       if(Array.isArray(j.names)){ names=j.names; save(LS.names,names); }
       if(j.apikey){ apikey=j.apikey; $key.value=apikey; save(LS.key,apikey); }
-      if(j.rev){ rev=j.rev; save(LS.rev,rev); }
+      if(j.revW){ revW=j.revW; save(LS.revw,revW); }
+      if(j.revM){ revM=j.revM; save(LS.revm,revM); }
+      /* 억 단위로 받던 시절의 백업 파일 */
+      if(!j.revW && j.rev){
+        revW={}; for(const [k,v] of Object.entries(j.rev)) if(+v>0) revW[k]=Math.round(+v*10000);
+        save(LS.revw,revW);
+      }
       if(j.clipCfg){ clipCfg=j.clipCfg; save(LS.clip,clipCfg); }
       renderChips(); render(); setStatus("복원 완료. 새로고침을 누르세요.","ok");
     }catch{ setStatus("백업 파일을 읽을 수 없습니다.","err"); }
