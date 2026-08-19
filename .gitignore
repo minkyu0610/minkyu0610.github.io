@@ -8,3 +8,4 @@ t.html
 chunk.js
 *.json
 !package.json
+cg.html
