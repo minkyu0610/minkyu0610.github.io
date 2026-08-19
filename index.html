@@ -102,14 +102,24 @@
     padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
   .tab:hover{color:var(--tx);background:#232c39}
   .tab.on{background:var(--acc);color:#1a1206;border-color:var(--acc)}
-  #frame{width:100%;border:none;display:block;background:#fff;height:900px}
+  /* iframe을 실제보다 크게 렌더하고, 이 컨테이너가 보여줄 영역만 창처럼 오려낸다.
+     교차 출처라 내부 DOM은 건드릴 수 없으므로 순수하게 우리 쪽 레이아웃으로만 처리. */
+  #clip{position:relative;overflow:hidden;background:#fff;height:900px}
+  #frame{position:absolute;top:0;left:0;border:none;display:block;background:#fff;transform-origin:0 0}
   .vempty{padding:44px 20px;text-align:center;color:var(--tx3);font-size:13px;line-height:1.9}
   .vfoot{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--tx3);flex-wrap:wrap}
+
+  /* 잘라내기 조절 */
+  .vtune{display:none;gap:14px;flex-wrap:wrap;align-items:center;padding:9px 12px;
+    border-top:1px solid var(--line);background:var(--panel2)}
+  .vtune.on{display:flex}
+  .tune{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--tx2);font-weight:600}
+  .tune input[type=range]{width:120px;accent-color:var(--acc)}
+  .tune b{color:var(--acc2);font-weight:700;min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
 
   body.zen .wrap{max-width:none;padding:0}
   body.zen header,body.zen details.setup,body.zen .panel,body.zen .tablewrap,body.zen .footnote{display:none}
   body.zen #viewer{margin:0;border:none;border-radius:0}
-  body.zen #frame{height:calc(100vh - 92px)}
 
   .footnote{margin-top:12px;font-size:12px;color:var(--tx3);line-height:1.8}
 
@@ -181,13 +191,31 @@
     <span class="vtitle" id="vname"></span>
     <span id="tabs"></span>
     <span class="spacer" style="flex:1"></span>
+    <button class="btn sm" id="btnTune">잘라내기</button>
     <button class="btn sm" id="btnZen">넓게 보기</button>
     <button class="btn sm" id="btnNew">새 탭 ↗</button>
   </div>
+
+  <div class="vtune" id="vtune">
+    <span class="tune">위 잘라내기
+      <input type="range" id="tT" min="0" max="900" step="5"><b id="tTv"></b></span>
+    <span class="tune">좌 잘라내기
+      <input type="range" id="tL" min="0" max="600" step="5"><b id="tLv"></b></span>
+    <span class="tune">가로 폭
+      <input type="range" id="tW" min="900" max="2400" step="20"><b id="tWv"></b></span>
+    <span class="tune">확대
+      <input type="range" id="tZ" min="50" max="150" step="1"><b id="tZv"></b></span>
+    <span class="tune">높이
+      <input type="range" id="tH" min="400" max="2000" step="20"><b id="tHv"></b></span>
+    <button class="btn sm" id="btnTuneReset">초기화</button>
+  </div>
+
   <div class="vempty" id="vempty">
     표에서 캐릭터를 클릭하면 여기에 <b>환산 · 보스컷 · 스펙업 순서 · 헥사강화</b>가 바로 표시됩니다.
   </div>
-  <iframe id="frame" style="display:none" referrerpolicy="no-referrer-when-downgrade"></iframe>
+  <div id="clip" style="display:none">
+    <iframe id="frame" referrerpolicy="no-referrer-when-downgrade"></iframe>
+  </div>
   <div class="vfoot" id="vfoot" style="display:none">
     <span>maplescouter.com 페이지를 그대로 표시합니다.</span>
     <span class="spacer" style="flex:1"></span>
@@ -219,7 +247,8 @@ const VIEWS = [
 ];
 
 const LS = { key:"msdash.apikey", names:"msdash.names", data:"msdash.data",
-             ocid:"msdash.ocid", sort:"msdash.sort", view:"msdash.view", time:"msdash.time" };
+             ocid:"msdash.ocid", sort:"msdash.sort", view:"msdash.view", time:"msdash.time",
+             clip:"msdash.clip" };
 const OCID_TTL = 7*24*3600*1000;
 const CONCURRENCY = 4;
 
@@ -233,6 +262,11 @@ let ocidMap = load(LS.ocid,{});
 let sort    = Object.assign({col:"cp",dir:-1}, load(LS.sort,{}));
 let sel     = null;                       // 선택된 캐릭터명
 let view    = load(LS.view,"info");       // 선택된 탭
+let clipCfg = load(LS.clip,{});            // 탭별 잘라내기 설정
+
+/* t=위 잘라내기, l=좌 잘라내기, w=iframe 가로 폭, z=확대(%), h=표시 높이 — 모두 px */
+const CLIP_DEFAULT = { t:0, l:0, w:0, z:100, h:900 };   // w:0 = 컨테이너 폭 그대로(잘라내지 않음)
+const cfg = () => (clipCfg[view] = Object.assign({}, CLIP_DEFAULT, clipCfg[view]));
 
 /* ================= API ================= */
 const ERRMSG = {
@@ -390,13 +424,65 @@ function openViewer(name){
   document.getElementById("vbar").style.display="flex";
   document.getElementById("vfoot").style.display="flex";
   document.getElementById("vempty").style.display="none";
-  document.getElementById("frame").style.display="block";
+  document.getElementById("clip").style.display="block";
   document.getElementById("vname").innerHTML = esc(name)+`<em>maplescouter</em>`;
   renderTabs();
   loadFrame();
+  syncTuneInputs();
+  applyClip();
   render();
   document.getElementById("viewer").scrollIntoView({behavior:"smooth",block:"start"});
 }
+
+/* ---- 잘라내기: iframe을 크게 렌더하고 clip 컨테이너가 일부만 보여준다 ---- */
+function applyClip(){
+  const clip=document.getElementById("clip"), f=document.getElementById("frame");
+  if(clip.style.display==="none") return;
+  const c=cfg(), z=c.z/100;
+
+  let h=c.h;
+  if(document.body.classList.contains("zen")){
+    const foot=document.getElementById("vfoot").offsetHeight;
+    h=Math.max(300, window.innerHeight - clip.getBoundingClientRect().top - foot);
+  }
+  clip.style.height=h+"px";
+
+  const containerW = clip.clientWidth;
+  const layoutW = c.w>0 ? c.w : Math.round(containerW/z + c.l);
+
+  f.style.width  = layoutW+"px";
+  f.style.height = (c.t + h/z)+"px";
+  f.style.transform = `scale(${z}) translate(${-c.l}px, ${-c.t}px)`;
+}
+
+const TUNE=[["tT","t","px"],["tL","l","px"],["tW","w","px"],["tZ","z","%"],["tH","h","px"]];
+function syncTuneInputs(){
+  const c=cfg();
+  for(const [id,key,unit] of TUNE){
+    const el=document.getElementById(id);
+    el.value = (key==="w" && !c.w) ? el.min : c[key];
+    document.getElementById(id+"v").textContent =
+      (key==="w" && !c.w) ? "자동" : c[key]+unit;
+  }
+}
+for(const [id,key,unit] of TUNE){
+  document.getElementById(id).addEventListener("input", e=>{
+    const c=cfg();
+    c[key] = +e.target.value;
+    document.getElementById(id+"v").textContent = c[key]+unit;
+    save(LS.clip,clipCfg);
+    applyClip();
+  });
+}
+document.getElementById("btnTune").addEventListener("click", ()=>{
+  document.getElementById("vtune").classList.toggle("on");
+  applyClip();
+});
+document.getElementById("btnTuneReset").addEventListener("click", ()=>{
+  clipCfg[view]=Object.assign({},CLIP_DEFAULT);
+  save(LS.clip,clipCfg); syncTuneInputs(); applyClip();
+});
+window.addEventListener("resize", applyClip);
 function renderTabs(){
   document.getElementById("tabs").innerHTML =
     VIEWS.map(v=>`<button class="tab ${v.id===view?"on":""}" data-v="${v.id}">${v.label}</button>`).join("");
@@ -408,7 +494,8 @@ function loadFrame(){
 }
 document.getElementById("tabs").addEventListener("click", e=>{
   const b=e.target.closest(".tab"); if(!b) return;
-  view=b.dataset.v; save(LS.view,view); renderTabs(); loadFrame();
+  view=b.dataset.v; save(LS.view,view);
+  renderTabs(); loadFrame(); syncTuneInputs(); applyClip();
 });
 document.getElementById("btnNew").addEventListener("click", ()=>{
   if(!sel) return;
@@ -418,6 +505,7 @@ document.getElementById("btnNew").addEventListener("click", ()=>{
 document.getElementById("btnZen").addEventListener("click", e=>{
   document.body.classList.toggle("zen");
   e.target.textContent = document.body.classList.contains("zen") ? "돌아가기" : "넓게 보기";
+  applyClip();
 });
 
 /* ================= 캐릭터 목록 ================= */
@@ -433,7 +521,8 @@ document.getElementById("chips").addEventListener("click", e=>{
   names.splice(+b.dataset.i,1);
   rows=rows.filter(r=>r.name!==n);
   if(sel===n){ sel=null; document.getElementById("vbar").style.display="none";
-    document.getElementById("frame").style.display="none"; document.getElementById("vfoot").style.display="none";
+    document.getElementById("clip").style.display="none"; document.getElementById("vfoot").style.display="none";
+    document.getElementById("vtune").classList.remove("on");
     document.getElementById("vempty").style.display="block"; }
   save(LS.names,names); save(LS.data,rows);
   renderChips(); render();
