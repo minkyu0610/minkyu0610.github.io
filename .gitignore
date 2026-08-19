@@ -1,2 +1,10 @@
 .claude/
 *.log
+
+# 진단·임시 파일
+pg.html
+pm.html
+t.html
+chunk.js
+*.json
+!package.json
