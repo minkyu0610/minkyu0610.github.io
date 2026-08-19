@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>내 캐릭 환산 대시보드</title>
+<style>
+  :root{
+    --bg:#0e1117; --panel:#161b24; --panel2:#1c232e; --line:#2a3340;
+    --tx:#e6edf3; --tx2:#9aa7b6; --tx3:#6b7887;
+    --acc:#f0a000; --acc2:#ffc94d;
+    --ok:#3fb950; --err:#f85149; --info:#58a6ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--tx);
+    font-family:"Pretendard","Segoe UI",-apple-system,BlinkMacSystemFont,"Malgun Gothic",sans-serif;
+    font-size:14px; line-height:1.5; -webkit-text-size-adjust:100%;
+  }
+  a{color:var(--info)}
+  .wrap{max-width:1500px;margin:0 auto;padding:18px 16px 60px}
+
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  h1{font-size:19px;margin:0;font-weight:700;letter-spacing:-.3px}
+  h1 span{color:var(--acc)}
+  .spacer{flex:1}
+  .btn{
+    background:var(--panel2); color:var(--tx); border:1px solid var(--line);
+    border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600;
+    cursor:pointer; font-family:inherit; white-space:nowrap;
+  }
+  .btn:hover:not(:disabled){border-color:#3d4a5c;background:#222b38}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.primary{background:var(--acc);color:#1a1206;border-color:var(--acc)}
+  .btn.primary:hover:not(:disabled){background:var(--acc2);border-color:var(--acc2)}
+  .btn.sm{padding:5px 11px;font-size:12px}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+  .panel h2{font-size:13px;margin:0 0 12px;color:var(--tx2);font-weight:700}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  input[type=text],input[type=password],select{
+    background:var(--bg);border:1px solid var(--line);color:var(--tx);
+    border-radius:8px;padding:8px 11px;font-size:13px;font-family:inherit;outline:none;
+  }
+  input:focus,select:focus{border-color:var(--acc)}
+  input::placeholder{color:var(--tx3)}
+  label.f{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--tx2);font-weight:600}
+  .hint{color:var(--tx3);font-size:12px;line-height:1.7}
+
+  details.setup{margin-bottom:12px}
+  details.setup>summary{
+    cursor:pointer;list-style:none;padding:11px 16px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;font-size:13px;font-weight:600;color:var(--tx2);
+    display:flex;align-items:center;gap:8px;
+  }
+  details.setup>summary::-webkit-details-marker{display:none}
+  details.setup>summary::before{content:"▸";color:var(--tx3);transition:transform .15s}
+  details.setup[open]>summary::before{transform:rotate(90deg)}
+  details.setup[open]>summary{border-radius:12px 12px 0 0;border-bottom:none}
+  details.setup .body{background:var(--panel);border:1px solid var(--line);border-radius:0 0 12px 12px;padding:16px}
+
+  .chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px;min-height:4px}
+  .chip{display:inline-flex;align-items:center;gap:7px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:999px;padding:5px 6px 5px 13px;font-size:13px}
+  .chip b{font-weight:600}
+  .chip .x{cursor:pointer;color:var(--tx3);border:none;background:transparent;font-size:15px;
+    line-height:1;padding:2px 5px;border-radius:50%;font-family:inherit}
+  .chip .x:hover{color:var(--err);background:#2a1d1d}
+
+  #status{font-size:13px;color:var(--tx2);min-height:20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .dot.run{background:var(--acc);animation:pulse 1s infinite}
+  .dot.ok{background:var(--ok)} .dot.err{background:var(--err)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  table{border-collapse:collapse;width:100%;font-size:13px;white-space:nowrap}
+  th,td{padding:9px 11px;text-align:right;border-bottom:1px solid var(--line)}
+  th{background:var(--panel2);color:var(--tx2);font-weight:700;font-size:11.5px;
+    position:sticky;top:0;cursor:pointer;user-select:none;z-index:2}
+  th:hover{color:var(--tx)}
+  th .ar{color:var(--acc);font-size:9px;margin-left:2px}
+  th.l,td.l{text-align:left}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:#1a212b}
+  tbody tr.sel{background:#20293a;box-shadow:inset 3px 0 0 var(--acc)}
+  tbody tr:last-child td{border-bottom:none}
+  td.name{font-weight:700}
+  .sub{color:var(--tx3);font-size:11.5px;font-weight:400}
+  .av{width:34px;height:34px;border-radius:7px;background:var(--panel2);object-fit:contain;flex:none;image-rendering:pixelated}
+  .nc{display:flex;align-items:center;gap:9px}
+  .bad{color:var(--err);font-size:12px}
+  .empty{padding:40px 20px;text-align:center;color:var(--tx3);font-size:13px;line-height:1.9}
+
+  /* ---------- viewer ---------- */
+  #viewer{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+  .vbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 12px;background:var(--panel2);border-bottom:1px solid var(--line)}
+  .vtitle{font-weight:700;font-size:14px;margin-right:6px}
+  .vtitle em{font-style:normal;color:var(--tx3);font-weight:400;font-size:12px;margin-left:6px}
+  .tab{background:transparent;border:1px solid transparent;color:var(--tx2);border-radius:7px;
+    padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .tab:hover{color:var(--tx);background:#232c39}
+  .tab.on{background:var(--acc);color:#1a1206;border-color:var(--acc)}
+  /* iframe을 실제보다 크게 렌더하고, 이 컨테이너가 보여줄 영역만 창처럼 오려낸다.
+     교차 출처라 내부 DOM은 건드릴 수 없으므로 순수하게 우리 쪽 레이아웃으로만 처리. */
+  #clip{position:relative;overflow:hidden;background:#fff;height:900px}
+  #frame{position:absolute;top:0;left:0;border:none;display:block;background:#fff;transform-origin:0 0}
+  .vempty{padding:44px 20px;text-align:center;color:var(--tx3);font-size:13px;line-height:1.9}
+  .vfoot{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--tx3);flex-wrap:wrap}
+
+  /* 잘라내기 조절 */
+  .vtune{display:none;gap:14px;flex-wrap:wrap;align-items:center;padding:9px 12px;
+    border-top:1px solid var(--line);background:var(--panel2)}
+  .vtune.on{display:flex}
+  .tune{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--tx2);font-weight:600}
+  .tune input[type=range]{width:120px;accent-color:var(--acc)}
+  .tune b{color:var(--acc2);font-weight:700;min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
+
+  body.zen .wrap{max-width:none;padding:0}
+  body.zen header,body.zen details.setup,body.zen .panel,body.zen .tablewrap,body.zen .footnote{display:none}
+  body.zen #viewer{margin:0;border:none;border-radius:0}
+
+  .footnote{margin-top:12px;font-size:12px;color:var(--tx3);line-height:1.8}
+
+  @media(max-width:640px){
+    .wrap{padding:12px 10px 40px}
+    h1{font-size:16px}
+    th,td{padding:7px 8px;font-size:12px}
+    #frame{height:70vh}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>내 캐릭 <span>환산 대시보드</span></h1>
+  <div class="spacer"></div>
+  <button class="btn" id="btnExport">백업</button>
+  <button class="btn" id="btnImport">복원</button>
+  <button class="btn primary" id="btnRefresh">전체 새로고침</button>
+</header>
+
+<details class="setup" id="setup">
+  <summary>설정 &middot; 넥슨 API 키</summary>
+  <div class="body">
+    <div class="row" style="align-items:flex-end">
+      <label class="f" style="flex:1;min-width:280px">
+        API 키
+        <input type="password" id="apikey" placeholder="live_xxxxxxxx / test_xxxxxxxx">
+      </label>
+      <button class="btn" id="btnKeyShow">보기</button>
+      <button class="btn" id="btnKeySave">저장</button>
+    </div>
+    <p class="hint" style="margin:10px 0 0">
+      <a href="https://openapi.nexon.com/my-application/" target="_blank" rel="noopener">openapi.nexon.com</a>
+      → 내 애플리케이션 → 앱 등록(메이플스토리) → 키 복사.
+      키는 이 브라우저에만 저장되고 넥슨 서버 외 어디로도 전송되지 않습니다.
+    </p>
+  </div>
+</details>
+
+<div class="panel">
+  <h2>캐릭터 목록</h2>
+  <div class="row">
+    <input type="text" id="nameIn" placeholder="캐릭터명 입력 후 Enter (여러 줄 붙여넣기 가능)" style="flex:1;min-width:220px">
+    <button class="btn" id="btnAdd">추가</button>
+  </div>
+  <div class="chips" id="chips"></div>
+</div>
+
+<div class="panel" style="padding:12px 16px">
+  <div id="status"><span class="dot" style="background:var(--tx3)"></span>대기 중</div>
+</div>
+
+<div class="tablewrap">
+  <table>
+    <thead><tr id="thead"></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="empty">
+    캐릭터를 추가하고 <b>전체 새로고침</b>을 누르세요.<br>
+    설정에서 넥슨 오픈 API 키를 먼저 넣어야 합니다.
+  </div>
+</div>
+
+<!-- ============ VIEWER ============ -->
+<div id="viewer">
+  <div class="vbar" id="vbar" style="display:none">
+    <span class="vtitle" id="vname"></span>
+    <span id="tabs"></span>
+    <span class="spacer" style="flex:1"></span>
+    <button class="btn sm" id="btnTune">잘라내기</button>
+    <button class="btn sm" id="btnZen">넓게 보기</button>
+    <button class="btn sm" id="btnNew">새 탭 ↗</button>
+  </div>
+
+  <div class="vtune" id="vtune">
+    <span class="tune">위 잘라내기
+      <input type="range" id="tT" min="0" max="900" step="5"><b id="tTv"></b></span>
+    <span class="tune">좌 잘라내기
+      <input type="range" id="tL" min="0" max="600" step="5"><b id="tLv"></b></span>
+    <span class="tune">가로 폭
+      <input type="range" id="tW" min="900" max="2400" step="20"><b id="tWv"></b></span>
+    <span class="tune">확대
+      <input type="range" id="tZ" min="50" max="150" step="1"><b id="tZv"></b></span>
+    <span class="tune">높이
+      <input type="range" id="tH" min="400" max="2000" step="20"><b id="tHv"></b></span>
+    <button class="btn sm" id="btnTuneReset">초기화</button>
+  </div>
+
+  <div class="vempty" id="vempty">
+    표에서 캐릭터를 클릭하면 여기에 <b>환산 · 보스컷 · 스펙업 순서 · 헥사강화</b>가 바로 표시됩니다.
+  </div>
+  <div id="clip" style="display:none">
+    <iframe id="frame" referrerpolicy="no-referrer-when-downgrade"></iframe>
+  </div>
+  <div class="vfoot" id="vfoot" style="display:none">
+    <span>maplescouter.com 페이지를 그대로 표시합니다.</span>
+    <span class="spacer" style="flex:1"></span>
+    <span>안 보이면 <b>새 탭 ↗</b>으로 열어보세요.</span>
+  </div>
+</div>
+
+<p class="footnote">
+  표의 수치는 <b>NEXON Open API</b> 원본값입니다(게임 내 변동은 평균 15분 뒤 반영, 장비 프리셋·버프 상태에 따라 달라집니다).
+  환산 주스탯을 비롯한 계산값은 maplescouter가 자체 계산한 값을 그대로 보여줍니다.
+  <span class="sub">마지막 조회: <span id="lastfetch">-</span></span>
+</p>
+
+</div>
+
+<script>
+"use strict";
+
+/* ================= 상수 ================= */
+const API = "https://open.api.nexon.com/maplestory/v1";
+const MS  = "https://maplescouter.com";
+const PRESET = "00000";
+
+const VIEWS = [
+  { id:"info",       label:"환산",      path:"/ko/info" },
+  { id:"result",     label:"보스컷",    path:"/ko/result" },
+  { id:"spec-order", label:"스펙업 순서", path:"/ko/spec-order" },
+  { id:"hexa",       label:"헥사강화",   path:"/ko/hexa" },
+];
+
+const LS = { key:"msdash.apikey", names:"msdash.names", data:"msdash.data",
+             ocid:"msdash.ocid", sort:"msdash.sort", view:"msdash.view", time:"msdash.time",
+             clip:"msdash.clip" };
+const OCID_TTL = 7*24*3600*1000;
+const CONCURRENCY = 4;
+
+const load = (k,d)=>{ try{ const v=localStorage.getItem(k); return v===null?d:JSON.parse(v);}catch{return d;} };
+const save = (k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)); }catch{} };
+
+let apikey  = load(LS.key,"");
+let names   = load(LS.names,[]);
+let rows    = load(LS.data,[]);
+let ocidMap = load(LS.ocid,{});
+let sort    = Object.assign({col:"cp",dir:-1}, load(LS.sort,{}));
+let sel     = null;                       // 선택된 캐릭터명
+let view    = load(LS.view,"info");       // 선택된 탭
+let clipCfg = load(LS.clip,{});            // 탭별 잘라내기 설정
+
+/* t=위 잘라내기, l=좌 잘라내기, w=iframe 가로 폭, z=확대(%), h=표시 높이 — 모두 px */
+const CLIP_DEFAULT = { t:0, l:0, w:0, z:100, h:900 };   // w:0 = 컨테이너 폭 그대로(잘라내지 않음)
+const cfg = () => (clipCfg[view] = Object.assign({}, CLIP_DEFAULT, clipCfg[view]));
+
+/* ================= API ================= */
+const ERRMSG = {
+  OPENAPI00001:"넥슨 서버 내부 오류입니다.",
+  OPENAPI00002:"API 키 권한이 없습니다.",
+  OPENAPI00003:"해당 캐릭터를 찾을 수 없습니다.",
+  OPENAPI00004:"요청 형식이 잘못됐습니다.",
+  OPENAPI00005:"API 키가 올바르지 않습니다.",
+  OPENAPI00006:"잘못된 API 경로입니다.",
+  OPENAPI00007:"요청 한도를 초과했습니다. 잠시 후 다시 시도하세요.",
+  OPENAPI00009:"데이터 준비 중입니다. 잠시 후 다시 시도하세요.",
+  OPENAPI00010:"현재 API 점검 중입니다.",
+  OPENAPI00011:"넥슨 서버가 혼잡합니다.",
+};
+
+async function api(path, params){
+  const res = await fetch(API+path+"?"+new URLSearchParams(params), { headers:{"x-nxopen-api-key":apikey} });
+  const body = await res.json().catch(()=>null);
+  if(!res.ok){
+    const code = body && body.error && body.error.name;
+    const e = new Error(ERRMSG[code] || (body&&body.error&&body.error.message) || ("HTTP "+res.status));
+    e.code = code; throw e;
+  }
+  return body;
+}
+async function getOcid(name){
+  const c = ocidMap[name];
+  if(c && Date.now()-c.t < OCID_TTL) return c.id;
+  let ocid;
+  try{
+    ({ ocid } = await api("/id",{character_name:name}));
+  }catch(e){
+    /* 이름 조회 단계에서 00003/00004는 사실상 "그런 캐릭터 없음" */
+    if(e.code==="OPENAPI00004"||e.code==="OPENAPI00003")
+      throw new Error("캐릭터를 찾을 수 없습니다 (이름을 확인하세요)");
+    throw e;
+  }
+  ocidMap[name] = {id:ocid,t:Date.now()};
+  save(LS.ocid,ocidMap);
+  return ocid;
+}
+const soft = p => p.catch(()=>null);
+
+async function fetchChar(name){
+  const ocid = await getOcid(name);
+  const [basic,stat,union,dojang] = await Promise.all([
+    api("/character/basic",{ocid}),
+    api("/character/stat",{ocid}),
+    soft(api("/user/union",{ocid})),
+    soft(api("/character/dojang",{ocid})),
+  ]);
+  const S={}; for(const s of (stat.final_stat||[])) S[s.stat_name]=parseFloat(s.stat_value)||0;
+  const cls = basic.character_class || stat.character_class || "";
+  const { main, sub, mainLabel } = pickStats(S, cls);
+  const isMage = mainLabel==="INT";
+  return {
+    name: basic.character_name||name,
+    world: basic.world_name||"", cls,
+    level: basic.character_level||0,
+    exp: parseFloat(basic.character_exp_rate)||0,
+    img: basic.character_image||"",
+    cp: S["전투력"]||0,
+    union: union?(union.union_level||0):0,
+    artifact: union?(union.union_artifact_level||0):0,
+    dojang: dojang?(dojang.dojang_best_floor||0):0,
+    main, sub, mainLabel,
+    atk: isMage ? (S["마력"]||0) : (S["공격력"]||0),
+    isMage,
+    dmg:S["데미지"]||0, boss:S["보스 몬스터 데미지"]||0, fd:S["최종 데미지"]||0,
+    ied:S["방어율 무시"]||0, cr:S["크리티컬 확률"]||0, cd:S["크리티컬 데미지"]||0,
+  };
+}
+
+/* 주스탯 판정 — 스탯창 최대값 기준, 제논/데몬어벤저만 예외 */
+function pickStats(S, cls){
+  const str=S["STR"]||0, dex=S["DEX"]||0, int=S["INT"]||0, luk=S["LUK"]||0;
+  if(cls.includes("제논")) return {main:str+dex+luk, sub:0, mainLabel:"STR+DEX+LUK"};
+  if(cls.includes("데몬어벤")) return {main:S["HP"]||0, sub:0, mainLabel:"HP"};
+  const a=[["STR",str],["DEX",dex],["INT",int],["LUK",luk]].sort((x,y)=>y[1]-x[1]);
+  return {main:a[0][1], sub:a[1][1], mainLabel:a[0][0]};
+}
+
+/* ================= 포맷 ================= */
+const nf  = n => Math.round(n).toLocaleString("ko-KR");
+const nf1 = n => n.toFixed(1);
+function cpFmt(n){
+  if(!n) return "-";
+  if(n>=1e8){ const e=Math.floor(n/1e8), m=Math.floor((n%1e8)/1e4);
+    return e+"억"+(m?" "+m.toLocaleString("ko-KR")+"만":""); }
+  if(n>=1e4) return Math.floor(n/1e4).toLocaleString("ko-KR")+"만";
+  return nf(n);
+}
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ================= 표 ================= */
+const COLS = [
+  { id:"name",  label:"캐릭터", align:"l", val:r=>r.name, cell:r=>{
+      const img = r.img?`<img class="av" src="${esc(r.img)}" alt="" loading="lazy">`:`<div class="av"></div>`;
+      return `<div class="nc">${img}<div><div>${esc(r.name)}</div><div class="sub">${esc(r.world)} · ${esc(r.cls)}</div></div></div>`; } },
+  { id:"level", label:"레벨",   val:r=>r.level,  cell:r=>`Lv.${r.level}<div class="sub">${nf1(r.exp)}%</div>` },
+  { id:"cp",    label:"전투력", val:r=>r.cp,     cell:r=>cpFmt(r.cp) },
+  { id:"union", label:"유니온", val:r=>r.union,  cell:r=>r.union?`${nf(r.union)}<div class="sub">아티 ${r.artifact}</div>`:"-" },
+  { id:"dojang",label:"무릉",   val:r=>r.dojang, cell:r=>r.dojang?r.dojang+"층":"-" },
+  { id:"main",  label:"주스탯", val:r=>r.main,   cell:r=>`${nf(r.main)}<div class="sub">${r.mainLabel}</div>` },
+  { id:"atk",   label:"공격력", val:r=>r.atk,    cell:r=>`${nf(r.atk)}<div class="sub">${r.isMage?"마력":"공격력"}</div>` },
+  { id:"boss",  label:"보공",   val:r=>r.boss,   cell:r=>nf1(r.boss)+"%" },
+  { id:"ied",   label:"방무",   val:r=>r.ied,    cell:r=>nf1(r.ied)+"%" },
+  { id:"cd",    label:"크뎀",   val:r=>r.cd,     cell:r=>nf1(r.cd)+"%" },
+  { id:"fd",    label:"최종뎀", val:r=>r.fd,     cell:r=>nf1(r.fd)+"%" },
+  { id:"open",  label:"",       val:()=>0, nosort:true, cell:()=>`<button class="btn sm">보기</button>` },
+];
+
+function render(){
+  const thead=document.getElementById("thead"), tbody=document.getElementById("tbody"), empty=document.getElementById("empty");
+  if(!rows.length){ thead.innerHTML=""; tbody.innerHTML=""; empty.style.display="block"; return; }
+  empty.style.display="none";
+
+  thead.innerHTML = COLS.map(c=>
+    `<th class="${c.align==="l"?"l":""}" data-col="${c.id}">${c.label}`+
+    (sort.col===c.id?`<span class="ar">${sort.dir>0?"▲":"▼"}</span>`:"")+`</th>`).join("");
+
+  const col = COLS.find(c=>c.id===sort.col)||COLS[2];
+  const sorted = rows.slice().sort((a,b)=>{
+    if(a.err&&!b.err) return 1;
+    if(b.err&&!a.err) return -1;
+    const x=col.val(a), y=col.val(b);
+    return (typeof x==="string" ? x.localeCompare(y,"ko") : x-y) * sort.dir;
+  });
+
+  tbody.innerHTML = sorted.map(r=>{
+    if(r.err) return `<tr data-name="${esc(r.name)}"><td class="l name">${esc(r.name)}</td>
+      <td class="l bad" colspan="${COLS.length-1}">${esc(r.err)}</td></tr>`;
+    return `<tr data-name="${esc(r.name)}" class="${r.name===sel?"sel":""}">`+
+      COLS.map(c=>`<td class="${c.align==="l"?"l":""}${c.id==="name"?" name":""}">${c.cell(r)}</td>`).join("")+`</tr>`;
+  }).join("");
+}
+
+document.getElementById("thead").addEventListener("click", e=>{
+  const th=e.target.closest("th"); if(!th) return;
+  const c=COLS.find(x=>x.id===th.dataset.col); if(!c||c.nosort) return;
+  if(sort.col===c.id) sort.dir*=-1; else { sort.col=c.id; sort.dir = c.id==="name"?1:-1; }
+  save(LS.sort,sort); render();
+});
+document.getElementById("tbody").addEventListener("click", e=>{
+  const tr=e.target.closest("tr"); if(!tr||!tr.dataset.name) return;
+  openViewer(tr.dataset.name);
+});
+
+/* ================= 뷰어 ================= */
+function msUrl(name, path){
+  return MS+path+"?name="+encodeURIComponent(name)+"&preset="+PRESET;
+}
+function openViewer(name){
+  sel = name;
+  document.getElementById("vbar").style.display="flex";
+  document.getElementById("vfoot").style.display="flex";
+  document.getElementById("vempty").style.display="none";
+  document.getElementById("clip").style.display="block";
+  document.getElementById("vname").innerHTML = esc(name)+`<em>maplescouter</em>`;
+  renderTabs();
+  loadFrame();
+  syncTuneInputs();
+  applyClip();
+  render();
+  document.getElementById("viewer").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+/* ---- 잘라내기: iframe을 크게 렌더하고 clip 컨테이너가 일부만 보여준다 ---- */
+function applyClip(){
+  const clip=document.getElementById("clip"), f=document.getElementById("frame");
+  if(clip.style.display==="none") return;
+  const c=cfg(), z=c.z/100;
+
+  let h=c.h;
+  if(document.body.classList.contains("zen")){
+    const foot=document.getElementById("vfoot").offsetHeight;
+    h=Math.max(300, window.innerHeight - clip.getBoundingClientRect().top - foot);
+  }
+  clip.style.height=h+"px";
+
+  const containerW = clip.clientWidth;
+  const layoutW = c.w>0 ? c.w : Math.round(containerW/z + c.l);
+
+  f.style.width  = layoutW+"px";
+  f.style.height = (c.t + h/z)+"px";
+  f.style.transform = `scale(${z}) translate(${-c.l}px, ${-c.t}px)`;
+}
+
+const TUNE=[["tT","t","px"],["tL","l","px"],["tW","w","px"],["tZ","z","%"],["tH","h","px"]];
+function syncTuneInputs(){
+  const c=cfg();
+  for(const [id,key,unit] of TUNE){
+    const el=document.getElementById(id);
+    el.value = (key==="w" && !c.w) ? el.min : c[key];
+    document.getElementById(id+"v").textContent =
+      (key==="w" && !c.w) ? "자동" : c[key]+unit;
+  }
+}
+for(const [id,key,unit] of TUNE){
+  document.getElementById(id).addEventListener("input", e=>{
+    const c=cfg();
+    c[key] = +e.target.value;
+    document.getElementById(id+"v").textContent = c[key]+unit;
+    save(LS.clip,clipCfg);
+    applyClip();
+  });
+}
+document.getElementById("btnTune").addEventListener("click", ()=>{
+  document.getElementById("vtune").classList.toggle("on");
+  applyClip();
+});
+document.getElementById("btnTuneReset").addEventListener("click", ()=>{
+  clipCfg[view]=Object.assign({},CLIP_DEFAULT);
+  save(LS.clip,clipCfg); syncTuneInputs(); applyClip();
+});
+window.addEventListener("resize", applyClip);
+function renderTabs(){
+  document.getElementById("tabs").innerHTML =
+    VIEWS.map(v=>`<button class="tab ${v.id===view?"on":""}" data-v="${v.id}">${v.label}</button>`).join("");
+}
+function loadFrame(){
+  if(!sel) return;
+  const v = VIEWS.find(x=>x.id===view)||VIEWS[0];
+  document.getElementById("frame").src = msUrl(sel, v.path);
+}
+document.getElementById("tabs").addEventListener("click", e=>{
+  const b=e.target.closest(".tab"); if(!b) return;
+  view=b.dataset.v; save(LS.view,view);
+  renderTabs(); loadFrame(); syncTuneInputs(); applyClip();
+});
+document.getElementById("btnNew").addEventListener("click", ()=>{
+  if(!sel) return;
+  const v=VIEWS.find(x=>x.id===view)||VIEWS[0];
+  window.open(msUrl(sel,v.path),"_blank","noopener");
+});
+document.getElementById("btnZen").addEventListener("click", e=>{
+  document.body.classList.toggle("zen");
+  e.target.textContent = document.body.classList.contains("zen") ? "돌아가기" : "넓게 보기";
+  applyClip();
+});
+
+/* ================= 캐릭터 목록 ================= */
+function renderChips(){
+  const el=document.getElementById("chips");
+  el.innerHTML = names.length
+    ? names.map((n,i)=>`<span class="chip"><b>${esc(n)}</b><button class="x" data-i="${i}" title="삭제">×</button></span>`).join("")
+    : `<span class="hint">등록된 캐릭터가 없습니다.</span>`;
+}
+document.getElementById("chips").addEventListener("click", e=>{
+  const b=e.target.closest(".x"); if(!b) return;
+  const n=names[+b.dataset.i];
+  names.splice(+b.dataset.i,1);
+  rows=rows.filter(r=>r.name!==n);
+  if(sel===n){ sel=null; document.getElementById("vbar").style.display="none";
+    document.getElementById("clip").style.display="none"; document.getElementById("vfoot").style.display="none";
+    document.getElementById("vtune").classList.remove("on");
+    document.getElementById("vempty").style.display="block"; }
+  save(LS.names,names); save(LS.data,rows);
+  renderChips(); render();
+});
+function addNames(raw){
+  const list=raw.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
+  let added=0;
+  for(const n of list) if(!names.includes(n)){ names.push(n); added++; }
+  if(added){ save(LS.names,names); renderChips(); }
+  return added;
+}
+document.getElementById("btnAdd").addEventListener("click", ()=>{
+  const el=document.getElementById("nameIn");
+  if(addNames(el.value)){ el.value=""; refresh(); }
+});
+document.getElementById("nameIn").addEventListener("keydown", e=>{
+  if(e.key==="Enter"){ e.preventDefault(); document.getElementById("btnAdd").click(); }
+});
+
+/* ================= 조회 ================= */
+let busy=false;
+function setStatus(t,k){
+  document.getElementById("status").innerHTML =
+    `<span class="dot ${k||""}" ${k?"":'style="background:var(--tx3)"'}></span>${esc(t)}`;
+}
+async function pool(items,worker){
+  let i=0;
+  const next=async()=>{ while(i<items.length){ await worker(items[i++]); } };
+  await Promise.all(Array.from({length:Math.min(CONCURRENCY,items.length)},next));
+}
+async function refresh(){
+  if(busy) return;
+  if(!apikey){ setStatus("먼저 설정에서 API 키를 입력하세요.","err"); document.getElementById("setup").open=true; return; }
+  if(!names.length){ setStatus("캐릭터를 먼저 추가하세요.","err"); return; }
+  busy=true; document.getElementById("btnRefresh").disabled=true;
+
+  const out=[]; let fail=0;
+  setStatus(`조회 중... 0/${names.length}`,"run");
+  await pool(names, async name=>{
+    try{ out.push(await fetchChar(name)); }
+    catch(e){ fail++; out.push({name, err:e.message||"조회 실패"}); }
+    setStatus(`조회 중... ${out.length}/${names.length}`,"run");
+  });
+
+  rows = names.map(n=>out.find(r=>r.name===n)).filter(Boolean);
+  save(LS.data,rows); save(LS.time,Date.now());
+
+  busy=false; document.getElementById("btnRefresh").disabled=false;
+  setStatus(fail?`완료 — ${names.length-fail}개 성공, ${fail}개 실패`:`완료 — ${names.length}개 캐릭터`, fail?"err":"ok");
+  showTime(); render();
+}
+document.getElementById("btnRefresh").addEventListener("click", refresh);
+function showTime(){
+  const t=load(LS.time,0);
+  document.getElementById("lastfetch").textContent = t? new Date(t).toLocaleString("ko-KR") : "-";
+}
+
+/* ================= 설정 ================= */
+const $key=document.getElementById("apikey");
+$key.value=apikey;
+document.getElementById("btnKeySave").addEventListener("click", ()=>{
+  apikey=$key.value.trim(); save(LS.key,apikey);
+  setStatus(apikey?"API 키를 저장했습니다.":"API 키를 지웠습니다.", apikey?"ok":"err");
+  if(apikey && names.length) refresh();
+});
+document.getElementById("btnKeyShow").addEventListener("click", e=>{
+  const show=$key.type==="password";
+  $key.type = show?"text":"password";
+  e.target.textContent = show?"숨기기":"보기";
+});
+
+/* ================= 백업 / 복원 ================= */
+document.getElementById("btnExport").addEventListener("click", ()=>{
+  const blob=new Blob([JSON.stringify({names,apikey},null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="maple-dashboard-backup.json"; a.click();
+  URL.revokeObjectURL(a.href);
+});
+document.getElementById("btnImport").addEventListener("click", ()=>{
+  const inp=document.createElement("input");
+  inp.type="file"; inp.accept="application/json";
+  inp.onchange=async()=>{
+    try{
+      const j=JSON.parse(await inp.files[0].text());
+      if(Array.isArray(j.names)){ names=j.names; save(LS.names,names); }
+      if(j.apikey){ apikey=j.apikey; $key.value=apikey; save(LS.key,apikey); }
+      renderChips(); setStatus("복원 완료. 새로고침을 누르세요.","ok");
+    }catch{ setStatus("백업 파일을 읽을 수 없습니다.","err"); }
+  };
+  inp.click();
+});
+
+/* ================= 시작 ================= */
+renderChips(); render(); showTime();
+if(!apikey) document.getElementById("setup").open=true;
+else if(names.length) refresh();
+</script>
+</body>
+</html>
