@@ -650,7 +650,28 @@ document.getElementById("btnImport").addEventListener("click", ()=>{
   inp.click();
 });
 
+/* ================= 새 버전 자동 확인 =================
+   GitHub Pages가 Cache-Control: max-age=600 을 보내서, 갱신해도 최대 10분간
+   브라우저가 옛 파일을 재사용한다. 캐시를 우회해 서버의 ETag를 직접 확인하고
+   지금 열려 있는 문서와 다르면 한 번만 새로 불러온다. */
+async function checkUpdate(){
+  if(location.protocol==="file:") return;
+  try{
+    const head = await fetch(location.pathname, {method:"HEAD", cache:"no-store"});
+    const tag  = head.headers.get("etag") || head.headers.get("last-modified");
+    if(!tag) return;
+    const seen = sessionStorage.getItem("msdash.etag");
+    if(seen && seen!==tag){
+      sessionStorage.setItem("msdash.etag", tag);
+      location.reload();                      // 새 버전이 올라왔다
+      return;
+    }
+    sessionStorage.setItem("msdash.etag", tag);
+  }catch{}
+}
+
 /* ================= 시작 ================= */
+checkUpdate();
 renderChips(); render(); showTime();
 if(!apikey) document.getElementById("setup").open=true;
 else if(names.length) refresh();
