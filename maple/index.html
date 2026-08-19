@@ -199,6 +199,8 @@
   <div class="vtune" id="vtune">
     <span class="tune">위 잘라내기
       <input type="range" id="tT" min="0" max="1200" step="1"><b id="tTv"></b></span>
+    <span class="tune">아래 잘라내기
+      <input type="range" id="tB" min="0" max="800" step="1"><b id="tBv"></b></span>
     <span class="tune">좌 잘라내기
       <input type="range" id="tL" min="0" max="600" step="1"><b id="tLv"></b></span>
     <span class="tune">가로 폭
@@ -266,12 +268,17 @@ let sel     = null;                       // 선택된 캐릭터명
 let view    = load(LS.view,"info");       // 선택된 탭
 let clipCfg = load(LS.clip,{});            // 탭별 잘라내기 설정
 
-/* t=위 잘라내기, l=좌 잘라내기, w=iframe 가로 폭, z=확대(%), h=표시 높이 — 모두 px
+/* t=위, b=아래, l=좌 잘라내기, w=iframe 가로 폭, z=확대(%), h=표시 높이 — 모두 px
    기본값은 maplescouter 실측 기준(1060px 폭):
      y 0~117 헤더 / 130~380 광고배너 / 380~436 공지 / 436~686 즐겨찾기 → 686부터 본문
+     문서 맨 아래 268px 은 푸터(이용약관·개인정보·Copyright)
    폭을 1060으로 고정하면 좌우 여백이 없어 사이드 광고 자리가 생기지 않는다.
-   네 탭(환산·보스컷·스펙업·헥사) 모두 상단 구조가 동일해 같은 값을 쓴다. */
-const CLIP_DEFAULT = { t:686, l:23, w:1060, z:100, h:760, fit:true };
+   네 탭(환산·보스컷·스펙업·헥사) 모두 상단 구조가 동일해 같은 값을 쓴다.
+
+   아래 잘라내기는 위쪽과 원리가 다르다. 푸터는 iframe 안에서 끝까지 스크롤해야
+   나타나므로, iframe 뷰포트를 컨테이너보다 b 만큼 더 길게 잡아 그 구간을
+   컨테이너 밖(아래)에 숨긴다. 끝까지 내려도 푸터가 그 숨은 구간에 머문다. */
+const CLIP_DEFAULT = { t:686, b:268, l:23, w:1060, z:100, h:760, fit:true };
 const cfg = () => (clipCfg[view] = Object.assign({}, CLIP_DEFAULT, clipCfg[view]));
 
 /* ================= API ================= */
@@ -470,11 +477,11 @@ function applyClip(){
 
   f.style.left      = offsetX+"px";
   f.style.width     = layoutW+"px";
-  f.style.height    = (c.t + h/z)+"px";
+  f.style.height    = (c.t + h/z + (c.b||0))+"px";   // b 만큼 컨테이너 아래로 넘겨 숨긴다
   f.style.transform = `scale(${z}) translate(${-c.l}px, ${-c.t}px)`;
 }
 
-const TUNE=[["tT","t","px"],["tL","l","px"],["tW","w","px"],["tZ","z","%"],["tH","h","px"]];
+const TUNE=[["tT","t","px"],["tB","b","px"],["tL","l","px"],["tW","w","px"],["tZ","z","%"],["tH","h","px"]];
 function syncTuneInputs(){
   const c=cfg();
   for(const [id,key,unit] of TUNE){
